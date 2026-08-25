@@ -184,18 +184,36 @@ export default function Home() {
         </h2>
 
         <div className="bens">
-          {BENEFITS.map((b) => (
-            <div className="ben" key={b.no}>
-              <div className="bhd">
-                <span className="bno" style={{ background: b.color }}>
-                  {b.no}
-                </span>
-                <strong>{b.title}</strong>
+          {BENEFITS.map((b) => {
+            const inner = (
+              <>
+                <div className="bhd">
+                  <span className="bno" style={{ background: b.color }}>
+                    {b.no}
+                  </span>
+                  <strong>{b.title}</strong>
+                </div>
+                <div className="bico">{b.icon}</div>
+                <p>{b.body}</p>
+                {b.url && <span className="bgo">{b.go || '바로 가기'} →</span>}
+              </>
+            );
+            return b.url ? (
+              <a
+                className="ben link"
+                key={b.no}
+                href={b.url}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {inner}
+              </a>
+            ) : (
+              <div className="ben" key={b.no}>
+                {inner}
               </div>
-              <div className="bico">{b.icon}</div>
-              <p>{b.body}</p>
-            </div>
-          ))}
+            );
+          })}
         </div>
         <p className="benfoot">🌿 {BENEFIT_FOOT}</p>
 
