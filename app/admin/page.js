@@ -141,6 +141,35 @@ export default function Admin() {
     }
   }
 
+  // 맨 위 큰 그림 올리기 — 올린 뒤 곧바로 저장까지 해 준다
+  async function pickHero(fileList) {
+    const f = Array.from(fileList || [])[0];
+    if (!f) return;
+    setErr('');
+    setOk('');
+    setBusy(true);
+    try {
+      const blob = await upload(`hero/${f.name}`, f, {
+        access: 'public',
+        handleUploadUrl: '/api/upload',
+        clientPayload: pw,
+      });
+      const next = { ...data, site: { ...data.site, heroUrl: blob.url } };
+      setData(next);
+      const res = await fetch('/api/course', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pw, action: 'save', data: next }),
+      });
+      if (!res.ok) throw new Error('저장하지 못했어요.');
+      setOk('맨 위 그림을 바꿨습니다. 홈페이지를 새로고침하면 보입니다.');
+    } catch (e2) {
+      setErr('그림을 올리지 못했어요: ' + e2.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const delFile = (i, k) => {
     const sessions = data.sessions.slice();
     sessions[i] = { ...sessions[i], files: sessions[i].files.filter((_, x) => x !== k) };
@@ -187,6 +216,38 @@ export default function Admin() {
 
       {tab === 'site' && (
         <div className="item">
+          <label className="f">맨 위 큰 그림</label>
+          {data.site.heroUrl ? (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={data.site.heroUrl}
+                alt="맨 위 그림"
+                style={{ width: '100%', borderRadius: 12, display: 'block' }}
+              />
+              <button
+                className="small red"
+                style={{ marginTop: 8 }}
+                onClick={() => setData({ ...data, site: { ...data.site, heroUrl: '' } })}
+              >
+                이 그림 빼기
+              </button>
+            </>
+          ) : (
+            <p className="muted" style={{ margin: 0 }}>
+              아직 그림이 없어서 글자 화면이 나옵니다. 아래에서 그림 파일을 고르면 바로 바뀝니다.
+            </p>
+          )}
+          <input
+            type="file"
+            accept="image/*"
+            style={{ marginTop: 8, border: 'none', padding: 0 }}
+            onChange={(e) => pickHero(e.target.files)}
+          />
+          <p className="muted">
+            가로로 긴 그림(예: 1920×1080)이 가장 잘 맞습니다. 고르면 바로 저장됩니다.
+          </p>
+
           <label className="f">과정 이름</label>
           <input value={data.site.title} onChange={(e) => setSite('title', e.target.value)} />
 

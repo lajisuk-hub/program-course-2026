@@ -61,50 +61,99 @@ button {
   height: auto;
 }
 
-/* 그림이 아직 없을 때 대신 보여주는 화면 */
+/* 그림이 아직 없을 때 대신 보여주는 화면 (원본 안내 그림과 비슷하게) */
 .hero-fallback {
-  padding: 56px 20px 60px;
+  padding: 48px 20px 54px;
   text-align: center;
+  background: radial-gradient(120% 100% at 50% 0%, #ffffff 0%, #eef4ff 55%, #dfe9fa 100%);
 }
 
 .hero-fallback .tiles {
   display: flex;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .hero-fallback .tile {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 46px;
-  height: 46px;
-  border-radius: 10px;
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
   background: #fff;
-  color: var(--blue);
+  color: var(--blue-dark);
   font-weight: 800;
   font-size: 24px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 3px 0 rgba(30, 79, 163, 0.18), 0 4px 10px rgba(30, 79, 163, 0.14);
+}
+
+.hero-fallback .tile.big {
+  width: 58px;
+  height: 58px;
+  font-size: 32px;
+  border-radius: 13px;
 }
 
 .hero-fallback .tile.on {
   background: var(--blue);
   color: #fff;
+  box-shadow: 0 3px 0 rgba(15, 45, 100, 0.45), 0 5px 12px rgba(30, 79, 163, 0.3);
 }
 
-.hero-fallback h1 {
-  margin: 14px 0 6px;
-  font-size: 30px;
+.hero-fallback .slog {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 18px 0 0;
+  font-size: 19px;
+  font-weight: 700;
   color: var(--blue-dark);
-  letter-spacing: -0.5px;
 }
 
-.hero-fallback p {
-  margin: 0;
+.hero-fallback .slog b {
   color: var(--blue);
-  font-weight: 600;
+}
+
+.hero-fallback .slog .bar {
+  width: 46px;
+  height: 2px;
+  background: var(--blue);
+  opacity: 0.55;
+}
+
+.hero-fallback .marks {
+  display: flex;
+  justify-content: center;
+  gap: 26px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+
+.hero-fallback .marks span {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--blue-dark);
+}
+
+.hero-fallback .marks i {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: #fff;
+  font-size: 21px;
+  font-style: normal;
+  box-shadow: 0 2px 8px rgba(30, 79, 163, 0.14);
 }
 
 /* ── 과정 한 줄 소개 ─────────────────────────────── */
@@ -611,8 +660,24 @@ textarea {
     margin-top: -18px;
     padding: 18px;
   }
-  .hero-fallback h1 {
-    font-size: 24px;
+  .hero-fallback .tile {
+    width: 36px;
+    height: 36px;
+    font-size: 20px;
+  }
+  .hero-fallback .tile.big {
+    width: 44px;
+    height: 44px;
+    font-size: 25px;
+  }
+  .hero-fallback .slog {
+    font-size: 16px;
+  }
+  .hero-fallback .slog .bar {
+    width: 24px;
+  }
+  .hero-fallback .marks {
+    gap: 16px;
   }
 }
 

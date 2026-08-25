@@ -79,7 +79,7 @@ export default function Home() {
 
   return (
     <>
-      <Hero title={site.title} slogan={site.slogan} />
+      <Hero title={site.title} slogan={site.slogan} heroUrl={site.heroUrl} />
 
       <main className="wrap">
         <section className="intro">
