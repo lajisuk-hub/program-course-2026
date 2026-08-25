@@ -161,43 +161,38 @@ export default function Home() {
         {sessions.length === 0 ? (
           <p className="muted">아직 등록된 일정이 없습니다.</p>
         ) : (
-          <div className="cards">
+          <div className="flow">
             {sessions.map((s, i) => {
               const st = sessionState(s.date);
               const color = SESSION_COLORS[i % SESSION_COLORS.length];
+              const dim = st === 'done';
               return (
                 <a
                   key={s.id}
-                  className={`card ${st}`}
+                  className={`step ${st}`}
                   href={`/session/${s.id}`}
-                  style={{ borderTopColor: st === 'done' ? '#c7cedb' : color }}
                   onClick={(e) => {
                     e.preventDefault();
                     goSession(s.id);
                   }}
                 >
-                  <div className="top">
-                    <span className="no" style={{ background: st === 'done' ? '#9aa5b5' : color }}>
-                      {s.no}차
-                    </span>
-                    <span className={`badge ${st}`}>{STATE_LABEL[st]}</span>
-                  </div>
-                  <div className="when">{dateText(s.date)}</div>
-                  <div className="bigico">{s.icon}</div>
-                  <h3>{s.title}</h3>
-                  {s.teacher && <div className="tch">{s.teacher}</div>}
-                  {s.summary && <p className="sum">{s.summary}</p>}
-                  <div className="have">
-                    <span className={'chip' + (s.hasZoom ? ' on' : '')}>
-                      {s.hasZoom ? '🎥 줌 링크' : '🎥 준비 중'}
-                    </span>
-                    <span className={'chip' + (s.fileCount ? ' on' : '')}>
-                      {s.fileCount ? `📄 강의안 ${s.fileCount}` : '📄 준비 중'}
-                    </span>
-                    <span className={'chip' + (s.hasVideo ? ' on' : '')}>
-                      {s.hasVideo ? '▶ 녹화본' : '▶ 준비 중'}
-                    </span>
-                  </div>
+                  <span className="sno" style={{ background: dim ? '#9aa5b5' : color }}>
+                    {s.no}차
+                  </span>
+                  <span className="sdate">{dateText(s.date)}</span>
+                  <span className="sline" />
+                  <span className="sico">{s.icon}</span>
+                  <span className="stitle">{s.title}</span>
+                  {s.teacher && <span className="stch">{s.teacher}</span>}
+                  <span className="smark">
+                    {s.hasZoom && <b>🎥</b>}
+                    {s.fileCount > 0 && <b>📄</b>}
+                    {s.hasVideo && <b>▶</b>}
+                    {!s.hasZoom && !s.fileCount && !s.hasVideo && (
+                      <i>준비 중</i>
+                    )}
+                  </span>
+                  {st === 'today' && <span className="stoday">오늘</span>}
                 </a>
               );
             })}

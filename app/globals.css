@@ -836,3 +836,168 @@ textarea {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* ── 교육 일정: 안내 그림처럼 버튼이 화살표로 이어지는 모양 ── */
+.flow {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 30px 26px;
+}
+
+.step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  background: var(--card);
+  border: 2px solid transparent;
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  padding: 16px 10px 12px;
+  transition: transform 0.12s, box-shadow 0.12s, border-color 0.12s;
+}
+
+.step:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-hi);
+  border-color: var(--blue);
+}
+
+/* 다음 차시로 이어지는 화살표 (줄 끝에서는 숨긴다) */
+.step::after {
+  content: '➜';
+  position: absolute;
+  right: -22px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #c3ccd9;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.step:nth-child(6n)::after,
+.step:last-child::after {
+  content: none;
+}
+
+.step .sno {
+  color: #fff;
+  font-weight: 800;
+  font-size: 13px;
+  border-radius: 999px;
+  padding: 2px 12px;
+}
+
+.step .sdate {
+  display: block;
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #4b5563;
+  line-height: 1.4;
+}
+
+.step .sline {
+  display: block;
+  width: 60%;
+  border-top: 1px dashed var(--line);
+  margin: 8px 0 6px;
+}
+
+.step .sico {
+  font-size: 30px;
+  line-height: 1.25;
+}
+
+.step .stitle {
+  display: block;
+  margin-top: 4px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink);
+  line-height: 1.35;
+  word-break: keep-all;
+}
+
+.step .stch {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--blue);
+}
+
+.step .smark {
+  display: block;
+  margin-top: 8px;
+  font-size: 13px;
+  letter-spacing: 2px;
+}
+
+.step .smark i {
+  font-style: normal;
+  font-size: 12px;
+  color: #9ca3af;
+  letter-spacing: 0;
+}
+
+.step .stoday {
+  position: absolute;
+  top: -10px;
+  right: -6px;
+  background: #f59e0b;
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 2px 9px;
+}
+
+.step.done {
+  background: #f7f8fa;
+}
+
+.step.done .sico {
+  filter: grayscale(0.6);
+  opacity: 0.7;
+}
+
+.step.done .stitle {
+  color: #6b7280;
+}
+
+.step.today {
+  border-color: #f59e0b;
+  background: #fffdf5;
+}
+
+@media (max-width: 960px) {
+  .flow {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .step:nth-child(6n)::after {
+    content: '➜';
+  }
+  .step:nth-child(4n)::after,
+  .step:last-child::after {
+    content: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .flow {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px 22px;
+  }
+  .step:nth-child(6n)::after,
+  .step:nth-child(4n)::after {
+    content: '➜';
+  }
+  .step:nth-child(2n)::after,
+  .step:last-child::after {
+    content: none;
+  }
+  .step::after {
+    right: -19px;
+  }
+}
