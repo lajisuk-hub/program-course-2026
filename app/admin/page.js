@@ -280,7 +280,16 @@ export default function Admin() {
             onChange={(e) => setSite('certUrl', e.target.value)}
             placeholder="https://wmentor-edu-docs.vercel.app/..."
           />
-          <p className="muted">비워 두면 &quot;준비 중&quot;이라고 안내됩니다.</p>
+          <label className="f">수료증을 열어 줄 날짜</label>
+          <input
+            type="date"
+            value={data.site.certOpenAt || ''}
+            onChange={(e) => setSite('certOpenAt', e.target.value)}
+          />
+          <p className="muted">
+            이 날짜가 되기 전에는 수강생이 눌러도 &quot;○월 ○일부터 받으실 수 있습니다&quot;라고만 나오고,
+            주소도 감춰집니다. 날짜를 비우면 곧바로 열립니다.
+          </p>
 
           <label className="f">공지사항 제목 (없으면 비워 두세요)</label>
           <input

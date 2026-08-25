@@ -54,8 +54,10 @@ export default function Home() {
       if (site.kakaoUrl) window.open(site.kakaoUrl, '_blank', 'noopener');
       else setMsg('문의 채널이 아직 등록되지 않았어요. 관리자 화면에서 카카오톡 주소를 넣어주세요.');
     } else if (key === 'cert') {
-      if (site.certUrl) window.open(site.certUrl, '_blank', 'noopener');
-      else setMsg('수료증은 모든 과정을 마친 뒤 이곳에서 받으실 수 있습니다. (준비 중)');
+      if (site.certOpen && site.certUrl) window.open(site.certUrl, '_blank', 'noopener');
+      else if (!site.certOpen)
+        setMsg(`수료증은 ${dateText(site.certOpenAt)}부터 이곳에서 받으실 수 있습니다.`);
+      else setMsg('수료증은 과정을 마친 뒤 이곳에서 받으실 수 있습니다. (준비 중)');
     }
   }
 
@@ -96,7 +98,11 @@ export default function Home() {
                 )}
               </div>
               <div className="label">{q.label}</div>
-              <div className="desc">{q.desc}</div>
+              <div className="desc">
+                {q.key === 'cert' && !site.certOpen && site.certOpenAt
+                  ? `${dateText(site.certOpenAt)} 공개`
+                  : q.desc}
+              </div>
             </button>
           ))}
         </div>
