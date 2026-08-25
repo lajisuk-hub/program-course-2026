@@ -267,6 +267,13 @@ export default function Admin() {
             placeholder="https://open.kakao.com/o/..."
           />
 
+          <label className="f">교육 거래명세서 받는 곳 주소</label>
+          <input
+            value={data.site.receiptUrl || ''}
+            onChange={(e) => setSite('receiptUrl', e.target.value)}
+            placeholder="https://wmentor-edu-docs.vercel.app/..."
+          />
+
           <label className="f">수료증 받는 곳 주소</label>
           <input
             value={data.site.certUrl}

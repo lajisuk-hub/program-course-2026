@@ -4,28 +4,10 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Hero from './Hero.js';
 import Enter from './Enter.js';
+import KakaoIcon from './KakaoIcon.js';
 import { QUICK } from '../lib/defaults.js';
-import {
-  CORE_STEPS,
-  CORE_ITEMS,
-  BENEFITS,
-  BENEFIT_FOOT,
-  SESSION_COLORS,
-} from '../lib/content.js';
+import { BENEFITS, BENEFIT_FOOT, SESSION_COLORS } from '../lib/content.js';
 import { dateText, sessionState, STATE_LABEL, loadMe, clearMe } from '../lib/util.js';
-
-// 문장 안의 한 낱말만 색으로 강조한다
-function Hi({ text, word }) {
-  const i = text.indexOf(word);
-  if (i < 0) return <>{text}</>;
-  return (
-    <>
-      {text.slice(0, i)}
-      <b className="hi">{word}</b>
-      {text.slice(i + word.length)}
-    </>
-  );
-}
 
 export default function Home() {
   const router = useRouter();
@@ -65,9 +47,9 @@ export default function Home() {
     setMsg('');
     if (key === 'schedule') {
       scrollTo('schedule');
-    } else if (key === 'material') {
-      setMsg('아래 일정에서 강의를 고르시면 그 차시의 강의안과 녹화본을 보실 수 있어요.');
-      scrollTo('schedule');
+    } else if (key === 'receipt') {
+      if (site.receiptUrl) window.open(site.receiptUrl, '_blank', 'noopener');
+      else setMsg('교육 거래명세서 발급이 아직 준비 중입니다. 곧 이곳에서 받으실 수 있어요.');
     } else if (key === 'kakao') {
       if (site.kakaoUrl) window.open(site.kakaoUrl, '_blank', 'noopener');
       else setMsg('문의 채널이 아직 등록되지 않았어요. 관리자 화면에서 카카오톡 주소를 넣어주세요.');
@@ -104,7 +86,15 @@ export default function Home() {
         <div className="quick">
           {QUICK.map((q) => (
             <button key={q.key} onClick={() => quickClick(q.key)}>
-              <div className="ico">{q.icon}</div>
+              <div className="ico">
+                {q.key === 'kakao' ? (
+                  <span className="kbubble">
+                    <KakaoIcon size={22} />
+                  </span>
+                ) : (
+                  q.icon
+                )}
+              </div>
               <div className="label">{q.label}</div>
               <div className="desc">{q.desc}</div>
             </button>
@@ -120,34 +110,14 @@ export default function Home() {
           </section>
         )}
 
-        {/* ── 2026 프로그램과정의 핵심 ───────────────────── */}
+        {/* ── 2026 프로그램과정의 핵심 (원장님 안내 그림) ── */}
         <h2 className="h2" id="core">
           ✨ 2026 프로그램과정의 핵심
         </h2>
 
-        <section className="core">
-          <ol className="steps">
-            {CORE_STEPS.map((s, i) => (
-              <li key={i}>
-                <span className="dot">{s.icon}</span>
-                <span>
-                  <Hi text={s.text} word={s.hi} />
-                </span>
-              </li>
-            ))}
-          </ol>
-
-          <div className="coregrid">
-            {CORE_ITEMS.map((c) => (
-              <div className="corecard" key={c.no}>
-                <span className="cno" style={{ background: c.color }}>
-                  {c.no}
-                </span>
-                <span className="cico">{c.icon}</span>
-                <span className="cnm">{c.name}</span>
-              </div>
-            ))}
-          </div>
+        <section className="shot">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/core.jpg" alt="2026 프로그램과정의 핵심 — 철학·오감·자연·사회정서·문해력·하브루타·환경감수성·놀이·신체·디지털 설계" />
         </section>
 
         {/* ── 교육 일정 ─────────────────────────────────── */}
@@ -231,7 +201,8 @@ export default function Home() {
           <p style={{ marginTop: 0 }}>궁금한 점은 언제든지 카카오톡으로 물어보세요.</p>
           {site.kakaoUrl ? (
             <a className="btn kakao" href={site.kakaoUrl} target="_blank" rel="noopener noreferrer">
-              💬 {site.kakaoText || '카카오톡으로 문의하기'}
+              <KakaoIcon size={20} />
+              {site.kakaoText || '카카오톡으로 문의하기'}
             </a>
           ) : (
             <p className="muted">문의 채널이 아직 등록되지 않았어요.</p>
@@ -246,6 +217,19 @@ export default function Home() {
           </a>
         </p>
       </main>
+
+      {site.kakaoUrl && (
+        <a
+          className="kfloat"
+          href={site.kakaoUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="카카오톡으로 문의하기"
+        >
+          <KakaoIcon size={26} />
+          <span>문의하기</span>
+        </a>
+      )}
 
       {ask && (
         <Enter
