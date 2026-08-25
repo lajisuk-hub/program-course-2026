@@ -1,0 +1,17 @@
+{
+  "name": "program-course-2026",
+  "version": "1.0.0",
+  "description": "2026 어린이집 프로그램 교육과정 — 수강생 전용 홈페이지(일정·줌링크·강의안·녹화본·수료증)",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 4400",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@vercel/blob": "^2.8.0",
+    "next": "^14.2.35",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  }
+}
