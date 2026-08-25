@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { upload } from '@vercel/blob/client';
 import { phoneText, digits, dateText } from '../../lib/util.js';
+import { fileToSmallBase64 } from '../../lib/image.js';
 
 const newSession = (no) => ({
   id: 's' + Math.random().toString(36).slice(2, 8),
@@ -20,6 +21,8 @@ const newSession = (no) => ({
   videoUrl: '',
 });
 
+const toLines = (list) => list.map((x) => `${x.name} ${phoneText(x.phone)}`).join('\n');
+
 export default function Admin() {
   const [pw, setPw] = useState('');
   const [data, setData] = useState(null);
@@ -27,6 +30,8 @@ export default function Admin() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [ok, setOk] = useState('');
+  const [roster, setRoster] = useState(''); // 명단 글상자 내용
+  const [shotBusy, setShotBusy] = useState(false);
 
   async function login(e) {
     e.preventDefault();
@@ -41,6 +46,7 @@ export default function Admin() {
       const out = await res.json();
       if (!res.ok) throw new Error(out.error || '들어가지 못했어요.');
       setData(out.data);
+      setRoster(toLines(out.data.students || []));
     } catch (e2) {
       setErr(e2.message);
     } finally {
@@ -131,11 +137,7 @@ export default function Admin() {
       setData({ ...data, sessions });
       setOk('자료를 올렸습니다. 아래 "저장하기"를 눌러야 최종 반영됩니다.');
     } catch (e2) {
-      setErr(
-        '자료를 올리지 못했어요: ' +
-          e2.message +
-          '\n(내 컴퓨터에서 시험 중이면 보관함이 없어 올리기가 안 됩니다. Vercel에 올린 뒤 해 주세요.)',
-      );
+      setErr('자료를 올리지 못했어요: ' + e2.message);
     } finally {
       setBusy(false);
     }
@@ -176,26 +178,89 @@ export default function Admin() {
     setData({ ...data, sessions });
   };
 
-  // 명단 붙여넣기: 한 줄에 "이름 010-1234-5678"
+  // 캡처 사진에서 이름·전화번호 읽어 오기 (사진은 어디에도 저장하지 않는다)
+  async function readShots(fileList) {
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
+    setErr('');
+    setOk('');
+    setShotBusy(true);
+    try {
+      const found = [];
+      for (const f of files) {
+        const { data: image, mime } = await fileToSmallBase64(f);
+        const res = await fetch('/api/read-shot', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pw, image, mime }),
+        });
+        const out = await res.json();
+        if (!res.ok) throw new Error(out.error || '사진을 읽지 못했습니다.');
+        found.push(...(out.people || []));
+      }
+
+      // 글상자에 이미 있는 번호는 빼고 아래에 이어 붙인다
+      const have = new Set(
+        roster
+          .split(/\r?\n/)
+          .map((line) => digits(line))
+          .filter(Boolean),
+      );
+      const fresh = found.filter((p) => !have.has(digits(p.phone)));
+      if (!fresh.length) {
+        setOk('사진에서 새로 찾은 번호가 없습니다. (이미 다 들어 있거나 번호가 안 보였어요)');
+        return;
+      }
+      const lines = fresh.map((p) => `${p.name || '(이름 확인 필요)'} ${phoneText(p.phone)}`);
+      setRoster((prev) => (prev.trim() ? prev.trimEnd() + '\n' : '') + lines.join('\n'));
+      setOk(
+        `사진에서 ${fresh.length}명을 찾아 아래 칸에 넣었습니다. 이름이 맞는지 확인하신 뒤 ` +
+          '"명단 읽어들이기"와 "저장하기"를 눌러 주세요.',
+      );
+    } catch (e2) {
+      setErr(e2.message);
+    } finally {
+      setShotBusy(false);
+    }
+  }
+
+  // 글상자 내용을 명단으로 바꾼다 (한 줄에 "이름 010-1234-5678")
   function pasteRoster(text) {
-    const rows = String(text || '')
+    const all = String(text || '')
       .split(/\r?\n/)
       .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line) => {
-        const parts = line.split(/[,\t]|\s{1,}/).filter(Boolean);
-        const phone = parts.find((p) => digits(p).length >= 9) || '';
-        const name = parts.filter((p) => p !== phone).join(' ');
-        return { name, phone: digits(phone) };
-      })
-      .filter((r) => r.name && r.phone);
+      .filter(Boolean);
+
+    const rows = [];
+    const bad = [];
+    const seen = new Set();
+    for (const line of all) {
+      const parts = line.split(/[,\t]|\s+/).filter(Boolean);
+      const phone = parts.find((p) => digits(p).length >= 9) || '';
+      const name = parts.filter((p) => p !== phone).join(' ');
+      const num = digits(phone);
+      if (!name || !num) {
+        bad.push(line);
+        continue;
+      }
+      if (seen.has(num)) continue;
+      seen.add(num);
+      rows.push({ name, phone: num });
+    }
+
     if (!rows.length) {
-      setErr('읽을 수 있는 줄이 없어요. "홍길동 010-1234-5678" 처럼 한 줄에 한 명씩 넣어주세요.');
+      setErr(
+        '읽을 수 있는 줄이 없어요.\n"홍길동 010-1234-5678" 처럼 이름과 전화번호를 한 줄에 같이 넣어주세요.',
+      );
       return;
     }
-    setErr('');
+    setErr(
+      bad.length
+        ? `전화번호가 없어서 뺀 줄이 ${bad.length}개 있어요: ${bad.slice(0, 3).join(' / ')}`
+        : '',
+    );
     setData({ ...data, students: rows });
-    setOk(`${rows.length}명을 읽었습니다. 아래 "저장하기"를 눌러 주세요.`);
+    setOk(`${rows.length}명을 읽었습니다. 맨 아래 "저장하기"를 꼭 눌러 주세요.`);
   }
 
   return (
@@ -235,7 +300,7 @@ export default function Admin() {
             </>
           ) : (
             <p className="muted" style={{ margin: 0 }}>
-              아직 그림이 없어서 글자 화면이 나옵니다. 아래에서 그림 파일을 고르면 바로 바뀝니다.
+              지금은 홈페이지에 넣어 둔 기본 표지가 나옵니다. 아래에서 그림을 고르면 바뀝니다.
             </p>
           )}
           <input
@@ -254,7 +319,7 @@ export default function Admin() {
           <label className="f">한 줄 문구</label>
           <input value={data.site.slogan} onChange={(e) => setSite('slogan', e.target.value)} />
 
-          <label className="f">기간 (예: 2026년 9월 ~ 10월)</label>
+          <label className="f">기간 (예: 2026년 9월 ~ 11월)</label>
           <input value={data.site.period} onChange={(e) => setSite('period', e.target.value)} />
 
           <label className="f">과정 안내글</label>
@@ -271,15 +336,16 @@ export default function Admin() {
           <input
             value={data.site.receiptUrl || ''}
             onChange={(e) => setSite('receiptUrl', e.target.value)}
-            placeholder="https://wmentor-edu-docs.vercel.app/..."
+            placeholder="https://wmentor-receipt.vercel.app/?c=..."
           />
 
           <label className="f">수료증 받는 곳 주소</label>
           <input
             value={data.site.certUrl}
             onChange={(e) => setSite('certUrl', e.target.value)}
-            placeholder="https://wmentor-edu-docs.vercel.app/..."
+            placeholder="https://wmentor-edu-docs.vercel.app/g/..."
           />
+
           <label className="f">수료증을 열어 줄 날짜</label>
           <input
             type="date"
@@ -287,8 +353,8 @@ export default function Admin() {
             onChange={(e) => setSite('certOpenAt', e.target.value)}
           />
           <p className="muted">
-            이 날짜가 되기 전에는 수강생이 눌러도 &quot;○월 ○일부터 받으실 수 있습니다&quot;라고만 나오고,
-            주소도 감춰집니다. 날짜를 비우면 곧바로 열립니다.
+            이 날짜가 되기 전에는 수강생이 눌러도 &quot;○월 ○일부터 받으실 수 있습니다&quot;라고만
+            나오고, 주소도 감춰집니다. 날짜를 비우면 곧바로 열립니다.
           </p>
 
           <label className="f">공지사항 제목 (없으면 비워 두세요)</label>
@@ -406,7 +472,10 @@ export default function Admin() {
             className="btn ghost"
             style={{ marginTop: 14 }}
             onClick={() =>
-              setData({ ...data, sessions: [...data.sessions, newSession(data.sessions.length + 1)] })
+              setData({
+                ...data,
+                sessions: [...data.sessions, newSession(data.sessions.length + 1)],
+              })
             }
           >
             ＋ 차시 추가하기
@@ -422,31 +491,65 @@ export default function Admin() {
             <span className="muted">명단이 비어 있으면 누구나 볼 수 있으니 꼭 넣어주세요.</span>
           </p>
 
-          <label className="f">명단 붙여넣기 (한 줄에 한 명: 홍길동 010-1234-5678)</label>
+          <label className="f">① 캡처 사진에서 읽어오기 (카톡·문자·엑셀 화면 사진)</label>
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            disabled={shotBusy}
+            style={{ border: 'none', padding: 0 }}
+            onChange={(e) => {
+              readShots(e.target.files);
+              e.target.value = '';
+            }}
+          />
+          <p className="muted">
+            {shotBusy
+              ? '사진을 읽는 중입니다… 10초쯤 걸려요.'
+              : '사진 속 이름과 휴대폰 번호를 찾아 아래 칸에 넣어 드립니다. 사진은 저장하지 않습니다.'}
+          </p>
+
+          <label className="f">② 명단 확인·고치기 (한 줄에 한 명: 홍길동 010-1234-5678)</label>
           <textarea
             id="roster"
-            placeholder={'홍길동 010-1234-5678\n김보육 010-2222-3333'}
-            defaultValue={data.students.map((s) => `${s.name} ${phoneText(s.phone)}`).join('\n')}
+            style={{ minHeight: 200 }}
+            placeholder="홍길동 010-1234-5678"
+            value={roster}
+            onChange={(e) => setRoster(e.target.value)}
           />
-          <button
-            className="btn"
-            style={{ marginTop: 10 }}
-            onClick={() => pasteRoster(document.getElementById('roster').value)}
-          >
-            명단 읽어들이기
+          <p className="muted">
+            이름만 있고 번호가 없는 줄은 저장되지 않습니다. 번호를 꼭 같이 적어주세요.
+          </p>
+
+          <button className="btn" style={{ marginTop: 6 }} onClick={() => pasteRoster(roster)}>
+            ③ 명단 읽어들이기
           </button>
 
           {data.students.length > 0 && (
             <>
               <label className="f">지금 등록된 수강생 {data.students.length}명</label>
-              <div style={{ maxHeight: 260, overflow: 'auto', border: '2px solid var(--line)', borderRadius: 10, padding: 10 }}>
+              <div
+                style={{
+                  maxHeight: 260,
+                  overflow: 'auto',
+                  border: '2px solid var(--line)',
+                  borderRadius: 10,
+                  padding: 10,
+                }}
+              >
                 {data.students.map((s, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 2px' }}>
+                  <div
+                    key={i}
+                    style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 2px' }}
+                  >
                     <span>{s.name}</span>
                     <span className="muted">{phoneText(s.phone)}</span>
                   </div>
                 ))}
               </div>
+              <p className="muted">
+                여기까지는 아직 저장 전입니다. 맨 아래 <strong>저장하기</strong>를 꼭 눌러 주세요.
+              </p>
             </>
           )}
         </div>
