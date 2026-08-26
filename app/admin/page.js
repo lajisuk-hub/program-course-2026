@@ -197,11 +197,14 @@ export default function Admin() {
   // ── 수강생 명단 ───────────────────────────────────────────────
   // 명단은 넣거나 지우는 즉시 저장한다 (열린 강의실처럼 "넣으면 바로 반영")
   async function saveStudents(next, okMsg, added = []) {
+    return saveNow({ ...data, students: next }, okMsg, added);
+  }
+
+  async function saveNow(body, okMsg, added = []) {
     setErr('');
     setOk('');
     setBusy(true);
     try {
-      const body = { ...data, students: next };
       const res = await fetch('/api/course', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -362,6 +365,20 @@ export default function Admin() {
     await saveStudents(next, `${row.name} 님을 명단에서 지웠습니다.`, []);
   }
 
+  // 못 들어온 기록 — 「위 칸에 옮기기」: ① 한 명 넣기 칸에 채워 준다 (확인하고 넣으시라고)
+  function moveTry(t) {
+    setStuName(t.name || '');
+    setStuPhone(phoneText(t.phone) || '');
+    setErr('');
+    setOk('맨 위 「① 한 명 넣기」 칸에 옮겨 놓았습니다. 이름이 맞는지 보시고 「＋ 명단에 넣기」를 눌러 주세요.');
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function clearTries() {
+    if (!confirm('못 들어온 기록을 모두 지울까요?\n(명단은 그대로 있습니다)')) return;
+    await saveNow({ ...data, tries: [] }, '못 들어온 기록을 비웠습니다.', []);
+  }
+
   const qq = q.trim();
   const qNum = digits(qq);
   const isNew = (s) => justAdded.includes(digits(s.phone));
@@ -372,6 +389,7 @@ export default function Admin() {
       x.name.trim() &&
       !data.students.some((s) => digits(s.phone) === digits(x.phone)),
   );
+  const tries = Array.isArray(data.tries) ? data.tries : [];
   const shownStudents = data.students
     .filter((s) => !qq || s.name.includes(qq) || (qNum && digits(s.phone).includes(qNum)))
     .slice()
@@ -823,6 +841,72 @@ export default function Admin() {
               <p className="muted">
                 {qq ? '찾는 사람이 없습니다.' : '아직 명단이 비어 있습니다.'}
               </p>
+            )}
+          </div>
+
+          <div className="item">
+            <div className="hd">
+              <strong>못 들어온 기록 {tries.length > 0 ? `(${tries.length})` : ''}</strong>
+            </div>
+            <p className="muted" style={{ margin: '6px 0 0' }}>
+              명단에 없어서 못 들어온 분들입니다. <strong>이름이나 번호가 한 자만 달라도</strong> 못
+              들어오니, 아래에서 확인하고 맞는 분이면 「위 칸에 옮기기」를 눌러 명단에 넣어 주세요.
+            </p>
+            {tries.length === 0 ? (
+              <p className="muted" style={{ marginTop: 10 }}>아직 없습니다.</p>
+            ) : (
+              <>
+                <div
+                  style={{
+                    marginTop: 10,
+                    maxHeight: 340,
+                    overflow: 'auto',
+                    border: '2px solid var(--line)',
+                    borderRadius: 10,
+                  }}
+                >
+                  <table style={TBL}>
+                    <thead>
+                      <tr>
+                        <th style={TH}>넣은 이름</th>
+                        <th style={TH}>넣은 전화번호</th>
+                        <th style={TH}>시도</th>
+                        <th style={TH}>마지막 시각</th>
+                        <th style={TH} />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tries.map((t, i) => (
+                        <tr key={`${digits(t.phone)}-${t.name}-${i}`}>
+                          <td style={TD}>
+                            <strong>{t.name || '—'}</strong>
+                          </td>
+                          <td style={{ ...TD, whiteSpace: 'nowrap' }}>
+                            {phoneText(t.phone) || '—'}
+                          </td>
+                          <td style={TD}>{Number(t.count) || 1}회</td>
+                          <td style={{ ...TD, whiteSpace: 'nowrap', color: 'var(--gray)' }}>
+                            {t.at ? dateText(t.at, true) : '—'}
+                          </td>
+                          <td style={{ ...TD, textAlign: 'right' }}>
+                            <button className="small" onClick={() => moveTry(t)} disabled={busy}>
+                              위 칸에 옮기기
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <button
+                  className="small"
+                  style={{ marginTop: 12 }}
+                  onClick={clearTries}
+                  disabled={busy}
+                >
+                  기록 비우기
+                </button>
+              </>
             )}
           </div>
         </>

@@ -23,6 +23,24 @@ async function markVisit(data, idx) {
   await writeData({ ...data, students });
 }
 
+// 명단에 없어서 못 들어온 기록을 남긴다 (오타 한 자로 못 들어오는 분을 찾아내려고).
+// 같은 이름·번호로 여러 번 시도하면 줄을 늘리지 않고 횟수만 올린다.
+async function markTry(data, name, phone) {
+  const num = digits(phone);
+  const nm = String(name || '').trim();
+  const tries = Array.isArray(data.tries) ? data.tries.slice() : [];
+  const at = new Date().toISOString();
+  const i = tries.findIndex((t) => digits(t.phone) === num && String(t.name || '').trim() === nm);
+  if (i >= 0) {
+    const old = tries[i];
+    tries.splice(i, 1);
+    tries.unshift({ ...old, at, count: (Number(old.count) || 1) + 1 });
+  } else {
+    tries.unshift({ name: nm, phone: num, at, count: 1 });
+  }
+  await writeData({ ...data, tries: tries.slice(0, 60) });
+}
+
 export async function POST(req) {
   try {
     const { id, name, phone } = await req.json();
@@ -40,6 +58,11 @@ export async function POST(req) {
         (s) => nameKey(s.name) === who && digits(s.phone) === num,
       );
       if (idx < 0) {
+        try {
+          await markTry(data, name, phone);
+        } catch (err) {
+          /* 기록을 남기지 못해도 안내는 그대로 나간다 */
+        }
         return Response.json(
           {
             error:
