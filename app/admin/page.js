@@ -2,8 +2,22 @@
 
 import { useState } from 'react';
 import { upload } from '@vercel/blob/client';
-import { phoneText, digits, dateText } from '../../lib/util.js';
+import { phoneText, digits, dateText, phoneProblem } from '../../lib/util.js';
 import { fileToSmallBase64 } from '../../lib/image.js';
+import { parsePeople } from '../../lib/parse.js';
+
+// 명단 표에 쓰는 자잘한 모양
+const TBL = { width: '100%', borderCollapse: 'collapse', fontSize: 15 };
+const TH = {
+  textAlign: 'left',
+  padding: '8px 10px',
+  background: '#f3f4f6',
+  color: '#4b5563',
+  fontSize: 13.5,
+  position: 'sticky',
+  top: 0,
+};
+const TD = { padding: '8px 10px', borderTop: '1px solid var(--line)' };
 
 const newSession = (no) => ({
   id: 's' + Math.random().toString(36).slice(2, 8),
@@ -21,8 +35,6 @@ const newSession = (no) => ({
   videoUrl: '',
 });
 
-const toLines = (list) => list.map((x) => `${x.name} ${phoneText(x.phone)}`).join('\n');
-
 export default function Admin() {
   const [pw, setPw] = useState('');
   const [data, setData] = useState(null);
@@ -30,7 +42,12 @@ export default function Admin() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [ok, setOk] = useState('');
-  const [roster, setRoster] = useState(''); // 명단 글상자 내용
+  const [stuName, setStuName] = useState(''); // 한 명 넣기 — 이름
+  const [stuPhone, setStuPhone] = useState(''); // 한 명 넣기 — 전화번호
+  const [bulk, setBulk] = useState(''); // 카톡·엑셀에서 붙여넣은 글
+  const [found, setFound] = useState(null); // 찾은 사람 (아직 명단에 넣지 않은 상태)
+  const [q, setQ] = useState(''); // 명단에서 찾기
+  const [justAdded, setJustAdded] = useState([]); // 방금 넣은 사람 (맨 위에 보여준다)
   const [shotBusy, setShotBusy] = useState(false);
 
   async function login(e) {
@@ -46,7 +63,6 @@ export default function Admin() {
       const out = await res.json();
       if (!res.ok) throw new Error(out.error || '들어가지 못했어요.');
       setData(out.data);
-      setRoster(toLines(out.data.students || []));
     } catch (e2) {
       setErr(e2.message);
     } finally {
@@ -178,7 +194,109 @@ export default function Admin() {
     setData({ ...data, sessions });
   };
 
-  // 캡처 사진에서 이름·전화번호 읽어 오기 (사진은 어디에도 저장하지 않는다)
+  // ── 수강생 명단 ───────────────────────────────────────────────
+  // 명단은 넣거나 지우는 즉시 저장한다 (열린 강의실처럼 "넣으면 바로 반영")
+  async function saveStudents(next, okMsg, added = []) {
+    setErr('');
+    setOk('');
+    setBusy(true);
+    try {
+      const body = { ...data, students: next };
+      const res = await fetch('/api/course', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pw, action: 'save', data: body }),
+      });
+      const out = await res.json();
+      if (!res.ok) throw new Error(out.error || '저장하지 못했어요.');
+      setData(out.data || body);
+      setJustAdded(added);
+      setOk(okMsg);
+      return true;
+    } catch (e2) {
+      setErr(e2.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // 여러 명을 명단에 넣는다 (이미 있는 번호는 건너뛴다). 넣은 사람 수를 돌려준다.
+  async function addPeople(people) {
+    const next = data.students.slice();
+    const added = [];
+    const names = [];
+    let skipped = 0;
+    for (const p of people) {
+      const nm = String(p.name || '').trim();
+      const num = digits(p.phone);
+      if (!nm || !num) continue;
+      if (next.some((s) => digits(s.phone) === num)) {
+        skipped += 1;
+        continue;
+      }
+      next.push({ name: nm, phone: num, visits: 0, lastAt: '' });
+      added.push(num);
+      names.push(nm);
+    }
+    if (!added.length) {
+      setOk('');
+      setErr(
+        skipped
+          ? '이미 명단에 있는 번호라서 넣지 않았어요.'
+          : '이름과 전화번호가 모두 있어야 넣을 수 있어요.',
+      );
+      return 0;
+    }
+    const done = await saveStudents(
+      next,
+      `${names.join(', ')} — ${added.length}명을 명단에 넣었습니다. (저장까지 끝났어요)` +
+        (skipped ? ` 이미 있던 ${skipped}명은 건너뛰었습니다.` : ''),
+      added,
+    );
+    return done ? added.length : 0;
+  }
+
+  // ① 한 명 직접 넣기
+  async function addOne(e) {
+    e.preventDefault();
+    setErr('');
+    setOk('');
+    const nm = stuName.trim();
+    if (!nm) {
+      setErr('이름을 넣어주세요.');
+      return;
+    }
+    const bad = phoneProblem(stuPhone);
+    if (bad) {
+      setErr(bad);
+      return;
+    }
+    const n = await addPeople([{ name: nm, phone: stuPhone }]);
+    if (n) {
+      setStuName('');
+      setStuPhone('');
+    }
+  }
+
+  // ② 붙여넣은 글에서 이름·전화번호 찾기 (아직 명단에 넣지는 않는다)
+  function scan() {
+    setErr('');
+    setOk('');
+    const people = parsePeople(bulk).map((x) => ({ ...x, on: true }));
+    setFound(people);
+    if (!people.length) {
+      setErr(
+        '전화번호를 찾지 못했어요.\n"홍길동 010-1234-5678"처럼 이름과 번호가 같이 있어야 찾을 수 있습니다.',
+      );
+    }
+  }
+
+  const setFoundRow = (i, patch) =>
+    setFound((f) => f.map((x, n) => (n === i ? { ...x, ...patch } : x)));
+
+  // ② 캡처 사진에서 읽어 오기 — 찾은 결과는 아래 표에 모으고, 확인한 뒤에 넣는다
+  // (사진은 어디에도 저장하지 않는다)
   async function readShots(fileList) {
     const files = Array.from(fileList || []);
     if (!files.length) return;
@@ -186,7 +304,7 @@ export default function Admin() {
     setOk('');
     setShotBusy(true);
     try {
-      const found = [];
+      const got = [];
       for (const f of files) {
         const { data: image, mime } = await fileToSmallBase64(f);
         const res = await fetch('/api/read-shot', {
@@ -196,26 +314,22 @@ export default function Admin() {
         });
         const out = await res.json();
         if (!res.ok) throw new Error(out.error || '사진을 읽지 못했습니다.');
-        found.push(...(out.people || []));
+        got.push(...(out.people || []));
       }
-
-      // 글상자에 이미 있는 번호는 빼고 아래에 이어 붙인다
-      const have = new Set(
-        roster
-          .split(/\r?\n/)
-          .map((line) => digits(line))
-          .filter(Boolean),
-      );
-      const fresh = found.filter((p) => !have.has(digits(p.phone)));
-      if (!fresh.length) {
-        setOk('사진에서 새로 찾은 번호가 없습니다. (이미 다 들어 있거나 번호가 안 보였어요)');
-        return;
-      }
-      const lines = fresh.map((p) => `${p.name || '(이름 확인 필요)'} ${phoneText(p.phone)}`);
-      setRoster((prev) => (prev.trim() ? prev.trimEnd() + '\n' : '') + lines.join('\n'));
+      // 이미 찾아 둔 사람과 합친다 (같은 번호는 한 번만)
+      setFound((old) => {
+        const merged = [...(old || [])];
+        for (const g of got) {
+          const num = digits(g.phone);
+          if (!num || merged.some((x) => digits(x.phone) === num)) continue;
+          merged.push({ name: g.name || '', phone: num, on: true });
+        }
+        return merged;
+      });
       setOk(
-        `사진에서 ${fresh.length}명을 찾아 아래 칸에 넣었습니다. 이름이 맞는지 확인하신 뒤 ` +
-          '"명단 읽어들이기"와 "저장하기"를 눌러 주세요.',
+        got.length
+          ? `사진에서 ${got.length}명을 찾았습니다. 아래 「찾은 사람」에서 확인하고 넣어 주세요.`
+          : '사진에서 전화번호를 찾지 못했습니다.',
       );
     } catch (e2) {
       setErr(e2.message);
@@ -224,44 +338,44 @@ export default function Admin() {
     }
   }
 
-  // 글상자 내용을 명단으로 바꾼다 (한 줄에 "이름 010-1234-5678")
-  function pasteRoster(text) {
-    const all = String(text || '')
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean);
-
-    const rows = [];
-    const bad = [];
-    const seen = new Set();
-    for (const line of all) {
-      const parts = line.split(/[,\t]|\s+/).filter(Boolean);
-      const phone = parts.find((p) => digits(p).length >= 9) || '';
-      const name = parts.filter((p) => p !== phone).join(' ');
-      const num = digits(phone);
-      if (!name || !num) {
-        bad.push(line);
-        continue;
-      }
-      if (seen.has(num)) continue;
-      seen.add(num);
-      rows.push({ name, phone: num });
+  // 「찾은 사람」에서 고른 사람만 명단에 넣기
+  async function saveFound() {
+    const pick = (found || []).filter((x) => x.on && x.name.trim());
+    if (!pick.length) return;
+    const n = await addPeople(pick);
+    if (n) {
+      setFound(null);
+      setBulk('');
     }
+  }
 
-    if (!rows.length) {
-      setErr(
-        '읽을 수 있는 줄이 없어요.\n"홍길동 010-1234-5678" 처럼 이름과 전화번호를 한 줄에 같이 넣어주세요.',
-      );
+  // 명단에서 한 명 지우기
+  async function delStudent(row) {
+    if (
+      !confirm(
+        `${row.name}(${phoneText(row.phone)}) 님을 명단에서 지울까요?\n지우면 이분은 강의 자료를 볼 수 없습니다.`,
+      )
+    ) {
       return;
     }
-    setErr(
-      bad.length
-        ? `전화번호가 없어서 뺀 줄이 ${bad.length}개 있어요: ${bad.slice(0, 3).join(' / ')}`
-        : '',
-    );
-    setData({ ...data, students: rows });
-    setOk(`${rows.length}명을 읽었습니다. 맨 아래 "저장하기"를 꼭 눌러 주세요.`);
+    const next = data.students.filter((s) => s !== row);
+    await saveStudents(next, `${row.name} 님을 명단에서 지웠습니다.`, []);
   }
+
+  const qq = q.trim();
+  const qNum = digits(qq);
+  const isNew = (s) => justAdded.includes(digits(s.phone));
+  // 「찾은 사람」 중에서 실제로 넣을 수 있는 사람 (이미 명단에 있는 번호는 뺀다)
+  const pickable = (found || []).filter(
+    (x) =>
+      x.on &&
+      x.name.trim() &&
+      !data.students.some((s) => digits(s.phone) === digits(x.phone)),
+  );
+  const shownStudents = data.students
+    .filter((s) => !qq || s.name.includes(qq) || (qNum && digits(s.phone).includes(qNum)))
+    .slice()
+    .sort((a, b) => (isNew(b) ? 1 : 0) - (isNew(a) ? 1 : 0));
 
   return (
     <main className="wrap" style={{ paddingTop: 28 }}>
@@ -484,75 +598,234 @@ export default function Admin() {
       )}
 
       {tab === 'stu' && (
-        <div className="item">
-          <p style={{ marginTop: 0 }}>
-            여기 적힌 <strong>이름과 전화번호</strong>가 맞아야 강의 자료를 볼 수 있습니다.
-            <br />
-            <span className="muted">명단이 비어 있으면 누구나 볼 수 있으니 꼭 넣어주세요.</span>
-          </p>
-
-          <label className="f">① 캡처 사진에서 읽어오기 (카톡·문자·엑셀 화면 사진)</label>
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            disabled={shotBusy}
-            style={{ border: 'none', padding: 0 }}
-            onChange={(e) => {
-              readShots(e.target.files);
-              e.target.value = '';
-            }}
-          />
-          <p className="muted">
-            {shotBusy
-              ? '사진을 읽는 중입니다… 10초쯤 걸려요.'
-              : '사진 속 이름과 휴대폰 번호를 찾아 아래 칸에 넣어 드립니다. 사진은 저장하지 않습니다.'}
-          </p>
-
-          <label className="f">② 명단 확인·고치기 (한 줄에 한 명: 홍길동 010-1234-5678)</label>
-          <textarea
-            id="roster"
-            style={{ minHeight: 200 }}
-            placeholder="홍길동 010-1234-5678"
-            value={roster}
-            onChange={(e) => setRoster(e.target.value)}
-          />
-          <p className="muted">
-            이름만 있고 번호가 없는 줄은 저장되지 않습니다. 번호를 꼭 같이 적어주세요.
-          </p>
-
-          <button className="btn" style={{ marginTop: 6 }} onClick={() => pasteRoster(roster)}>
-            ③ 명단 읽어들이기
-          </button>
-
-          {data.students.length > 0 && (
-            <>
-              <label className="f">지금 등록된 수강생 {data.students.length}명</label>
-              <div
-                style={{
-                  maxHeight: 260,
-                  overflow: 'auto',
-                  border: '2px solid var(--line)',
-                  borderRadius: 10,
-                  padding: 10,
-                }}
-              >
-                {data.students.map((s, i) => (
-                  <div
-                    key={i}
-                    style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 2px' }}
-                  >
-                    <span>{s.name}</span>
-                    <span className="muted">{phoneText(s.phone)}</span>
-                  </div>
-                ))}
+        <>
+          <div className="item">
+            <div className="hd">
+              <strong>① 한 명 넣기</strong>
+            </div>
+            <p className="muted" style={{ margin: '6px 0 0' }}>
+              여기 적힌 <strong>이름과 전화번호</strong>가 맞아야 강의 자료를 볼 수 있습니다. 명단이
+              비어 있으면 누구나 볼 수 있으니 꼭 넣어주세요.
+            </p>
+            <form onSubmit={addOne}>
+              <div className="row2">
+                <div>
+                  <label className="f">이름</label>
+                  <input
+                    type="text"
+                    value={stuName}
+                    onChange={(e) => setStuName(e.target.value)}
+                    placeholder="홍길동"
+                  />
+                </div>
+                <div>
+                  <label className="f">전화번호</label>
+                  <input
+                    type="tel"
+                    value={stuPhone}
+                    onChange={(e) => setStuPhone(e.target.value)}
+                    placeholder="010-1234-5678"
+                  />
+                </div>
               </div>
+              <button className="btn" style={{ marginTop: 12 }} disabled={busy}>
+                ＋ 명단에 넣기
+              </button>
+            </form>
+          </div>
+
+          <div className="item">
+            <div className="hd">
+              <strong>② 캡처 사진 · 카톡 내용에서 찾기</strong>
+            </div>
+            <p className="muted" style={{ margin: '6px 0 0' }}>
+              찾은 사람은 <strong>바로 명단에 들어가지 않습니다.</strong> 아래 「찾은 사람」에서 확인하고
+              고른 사람만 넣습니다.
+            </p>
+
+            <label className="f">📷 캡처 사진에서 읽기 (여러 장도 됩니다)</label>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              disabled={shotBusy}
+              style={{ border: 'none', padding: 0 }}
+              onChange={(e) => {
+                readShots(e.target.files);
+                e.target.value = '';
+              }}
+            />
+            <p className="muted">
+              {shotBusy
+                ? '사진을 읽는 중입니다… 10초쯤 걸려요.'
+                : 'AI가 사진 속 글자를 읽어 이름·전화번호를 찾아 드립니다. 사진은 저장하지 않습니다.'}
+            </p>
+
+            <label className="f">또는 카톡·엑셀 내용 붙여넣기</label>
+            <textarea
+              value={bulk}
+              onChange={(e) => {
+                setBulk(e.target.value);
+                setFound(null);
+              }}
+              placeholder={
+                '예)\n[Web발신] 홍길동님 결제 완료 010-1234-5678\n\n또는\n홍길동 010-1234-5678\n김영희 010-2222-3333'
+              }
+            />
+            <button
+              className="btn ghost"
+              style={{ marginTop: 8 }}
+              onClick={scan}
+              disabled={busy || !bulk.trim()}
+            >
+              🔎 이름 · 전화번호 찾기
+            </button>
+
+            {found && found.length > 0 && (
+              <>
+                <label className="f">찾은 사람 {found.length}명 — 확인하고 넣어 주세요</label>
+                <p className="muted">
+                  이름이 비었거나 잘못 찾았으면 직접 고쳐 주세요. 넣지 않을 사람은 왼쪽 체크를 꺼주시면
+                  됩니다.
+                </p>
+                <div style={{ overflowX: 'auto', border: '2px solid var(--line)', borderRadius: 10 }}>
+                  <table style={TBL}>
+                    <thead>
+                      <tr>
+                        <th style={TH}>넣기</th>
+                        <th style={TH}>이름</th>
+                        <th style={TH}>전화번호</th>
+                        <th style={TH}>상태</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {found.map((f, i) => {
+                        const already = data.students.find(
+                          (s) => digits(s.phone) === digits(f.phone),
+                        );
+                        return (
+                          <tr key={f.phone}>
+                            <td style={TD}>
+                              <input
+                                type="checkbox"
+                                checked={f.on}
+                                style={{ width: 20, height: 20 }}
+                                onChange={() => setFoundRow(i, { on: !f.on })}
+                              />
+                            </td>
+                            <td style={TD}>
+                              <input
+                                type="text"
+                                value={f.name}
+                                placeholder="이름을 넣어주세요"
+                                style={{ minWidth: 110 }}
+                                onChange={(e) => setFoundRow(i, { name: e.target.value })}
+                              />
+                            </td>
+                            <td style={{ ...TD, whiteSpace: 'nowrap' }}>{phoneText(f.phone)}</td>
+                            <td
+                              style={{
+                                ...TD,
+                                whiteSpace: 'nowrap',
+                                fontWeight: 700,
+                                color: already ? '#b91c1c' : f.name.trim() ? '#047857' : '#b45309',
+                              }}
+                            >
+                              {already
+                                ? `이미 있음(${already.name})`
+                                : f.name.trim()
+                                  ? '새로 등록'
+                                  : '이름 필요'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                {pickable.length > 0 ? (
+                  <button
+                    className="btn"
+                    style={{ marginTop: 12 }}
+                    onClick={saveFound}
+                    disabled={busy}
+                  >
+                    ✅ 고른 {pickable.length}명 명단에 넣기
+                  </button>
+                ) : (
+                  <p className="muted">
+                    새로 넣을 사람이 없습니다. (모두 이미 명단에 있거나 이름이 비어 있어요)
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+
+          <div className="item">
+            <div className="hd">
+              <strong>수강생 명단 {data.students.length}명</strong>
+              {justAdded.length > 0 && (
+                <span className="muted">방금 넣은 {justAdded.length}명은 ✨ 표시로 맨 위에 있어요</span>
+              )}
+            </div>
+            <input
+              type="text"
+              style={{ marginTop: 10 }}
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="🔎 이름이나 전화번호로 찾기"
+            />
+            <p className="muted">
+              명단은 넣거나 지우면 <strong>바로 저장</strong>됩니다. 맨 아래 「저장하기」를 따로 누르지
+              않아도 됩니다.
+            </p>
+            <div
+              style={{
+                maxHeight: 430,
+                overflow: 'auto',
+                border: '2px solid var(--line)',
+                borderRadius: 10,
+              }}
+            >
+              <table style={TBL}>
+                <thead>
+                  <tr>
+                    <th style={TH}>이름</th>
+                    <th style={TH}>전화번호</th>
+                    <th style={TH}>입장</th>
+                    <th style={TH}>마지막 입장</th>
+                    <th style={TH} />
+                  </tr>
+                </thead>
+                <tbody>
+                  {shownStudents.map((s, i) => (
+                    <tr key={`${digits(s.phone)}-${i}`} style={isNew(s) ? { background: '#fffbeb' } : undefined}>
+                      <td style={TD}>
+                        {isNew(s) && '✨ '}
+                        <strong>{s.name}</strong>
+                      </td>
+                      <td style={{ ...TD, whiteSpace: 'nowrap' }}>{phoneText(s.phone)}</td>
+                      <td style={TD}>{Number(s.visits) || 0}회</td>
+                      <td style={{ ...TD, whiteSpace: 'nowrap', color: 'var(--gray)' }}>
+                        {s.lastAt ? dateText(s.lastAt, true) : '—'}
+                      </td>
+                      <td style={{ ...TD, textAlign: 'right' }}>
+                        <button className="small red" onClick={() => delStudent(s)} disabled={busy}>
+                          지우기
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {shownStudents.length === 0 && (
               <p className="muted">
-                여기까지는 아직 저장 전입니다. 맨 아래 <strong>저장하기</strong>를 꼭 눌러 주세요.
+                {qq ? '찾는 사람이 없습니다.' : '아직 명단이 비어 있습니다.'}
               </p>
-            </>
-          )}
-        </div>
+            )}
+          </div>
+        </>
       )}
 
       {err && <div className="err">{err}</div>}

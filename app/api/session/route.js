@@ -1,10 +1,27 @@
 // 이름·전화번호를 확인한 뒤 그 차시의 줌 주소·강의안·녹화본을 내보낸다.
-import { readData } from '../../../lib/store.js';
+import { readData, writeData } from '../../../lib/store.js';
 import { digits, nameKey } from '../../../lib/util.js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 15;
+
+// 들어온 횟수를 센다 (관리자 화면에서 누가 들어와 봤는지 보시라고).
+// 같은 사람이 짧은 사이에 여러 번 눌러도 한 번으로 센다.
+const AGAIN = 10 * 60 * 1000;
+
+async function markVisit(data, idx) {
+  const s = data.students[idx];
+  const last = s.lastAt ? new Date(s.lastAt).getTime() : 0;
+  if (last && Date.now() - last < AGAIN) return;
+  const students = data.students.slice();
+  students[idx] = {
+    ...s,
+    visits: (Number(s.visits) || 0) + 1,
+    lastAt: new Date().toISOString(),
+  };
+  await writeData({ ...data, students });
+}
 
 export async function POST(req) {
   try {
@@ -19,10 +36,10 @@ export async function POST(req) {
 
     // 명단이 아직 없으면 누구나 들어올 수 있다 (원장님이 미리 확인해 보실 수 있게)
     if (data.students.length > 0) {
-      const found = data.students.find(
+      const idx = data.students.findIndex(
         (s) => nameKey(s.name) === who && digits(s.phone) === num,
       );
-      if (!found) {
+      if (idx < 0) {
         return Response.json(
           {
             error:
@@ -30,6 +47,11 @@ export async function POST(req) {
           },
           { status: 403 },
         );
+      }
+      try {
+        await markVisit(data, idx);
+      } catch (err) {
+        /* 횟수를 세지 못해도 들어오는 데는 문제없다 */
       }
     }
 
