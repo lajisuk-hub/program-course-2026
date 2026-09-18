@@ -34,10 +34,11 @@ export default function Home() {
 
   const site = data.site || {};
   const sessions = data.sessions || [];
-  // 「영역별 프로그램 기획자동화」 버튼 — 주소 칸에 글이 섞여 있어도 첫 주소만 쓴다
-  const planLinks = (Array.isArray(site.planLinks) ? site.planLinks : [])
-    .map((l) => ({ name: (l.name || '').trim(), url: pickUrl(l.url) }))
-    .filter((l) => l.url);
+  // 「얻어가는 것」 칸 안의 버튼들 — 주소 칸에 글이 섞여 있어도 첫 주소만 쓴다
+  const linksOf = (key) =>
+    (Array.isArray(site[key]) ? site[key] : [])
+      .map((l) => ({ name: (l.name || '').trim(), url: pickUrl(l.url) }))
+      .filter((l) => l.url);
 
   // 자료를 보려면 먼저 수강생 확인을 거친다
   function goSession(id) {
@@ -201,7 +202,7 @@ export default function Home() {
                 <p>{b.body}</p>
                 {b.url && <span className="bgo">{b.go || '바로 가기'} →</span>}
                 {b.links &&
-                  planLinks.map((l, i) => (
+                  linksOf(b.links).map((l, i) => (
                     <a
                       className="bgo blink"
                       key={i}

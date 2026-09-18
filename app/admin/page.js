@@ -113,6 +113,71 @@ export default function Admin() {
 
   const setSite = (k, v) => setData({ ...data, site: { ...data.site, [k]: v } });
 
+  // 「얻어가는 것」 칸 안에 뜨는 버튼 목록을 고치는 칸 (key = site 안의 이름)
+  const linkEditor = (key, title, no, example) => (
+    <>
+      <label className="f">「{title}」 버튼</label>
+      <p className="muted" style={{ marginTop: 0 }}>
+        홈페이지 「이번 과정에서 얻어가는 것」 {no}번 칸에 버튼으로 나옵니다. 이름과 주소를 넣고
+        아래 「저장하기」를 누르세요.
+      </p>
+      {(data.site[key] || []).map((l, i) => {
+        const list = data.site[key] || [];
+        const change = (k, v) =>
+          setSite(
+            key,
+            list.map((x, j) => (j === i ? { ...x, [k]: v } : x))
+          );
+        const url = pickUrl(l.url);
+        return (
+          <div
+            key={i}
+            style={{ border: '1px solid #e5e7eb', borderRadius: 10, padding: 10, marginBottom: 8 }}
+          >
+            <input
+              value={l.name || ''}
+              onChange={(e) => change('name', e.target.value)}
+              placeholder={'버튼 이름 (예: ' + example + ')'}
+            />
+            <input
+              style={{ marginTop: 6 }}
+              value={l.url || ''}
+              onChange={(e) => change('url', e.target.value)}
+              placeholder="주소 (https://... 로 시작)"
+            />
+            <p className="muted" style={{ margin: '6px 0 0' }}>
+              {url ? (
+                <>
+                  이 주소로 열려요:{' '}
+                  <a href={url} target="_blank" rel="noopener noreferrer">
+                    {url}
+                  </a>
+                </>
+              ) : (
+                '⚠ 주소가 비어 있거나 알아볼 수 없어요 — 이 버튼은 홈페이지에 안 나옵니다.'
+              )}
+            </p>
+            <button
+              className="small red"
+              style={{ marginTop: 6 }}
+              onClick={() => setSite(key, list.filter((_, j) => j !== i))}
+            >
+              이 버튼 빼기
+            </button>
+          </div>
+        );
+      })}
+      <button
+        className="small"
+        onClick={() =>
+          setSite(key, [...(data.site[key] || []), { name: '', url: '' }])
+        }
+      >
+        ➕ 버튼 하나 더 넣기
+      </button>
+    </>
+  );
+
   const setSes = (i, k, v) => {
     const sessions = data.sessions.slice();
     sessions[i] = { ...sessions[i], [k]: v };
@@ -471,65 +536,8 @@ export default function Admin() {
             placeholder="https://wmentor-receipt.vercel.app/?c=..."
           />
 
-          <label className="f">「영역별 프로그램 기획자동화」 버튼</label>
-          <p className="muted" style={{ marginTop: 0 }}>
-            홈페이지 「이번 과정에서 얻어가는 것」 2번 칸에 버튼으로 나옵니다. 이름과 주소를 넣고
-            아래 「저장하기」를 누르세요.
-          </p>
-          {(data.site.planLinks || []).map((l, i) => {
-            const list = data.site.planLinks || [];
-            const change = (k, v) =>
-              setSite(
-                'planLinks',
-                list.map((x, j) => (j === i ? { ...x, [k]: v } : x))
-              );
-            const url = pickUrl(l.url);
-            return (
-              <div
-                key={i}
-                style={{ border: '1px solid #e5e7eb', borderRadius: 10, padding: 10, marginBottom: 8 }}
-              >
-                <input
-                  value={l.name || ''}
-                  onChange={(e) => change('name', e.target.value)}
-                  placeholder="버튼 이름 (예: 오감융합놀이 기획프로그램)"
-                />
-                <input
-                  style={{ marginTop: 6 }}
-                  value={l.url || ''}
-                  onChange={(e) => change('url', e.target.value)}
-                  placeholder="주소 (예: https://5sense-program.vercel.app/)"
-                />
-                <p className="muted" style={{ margin: '6px 0 0' }}>
-                  {url ? (
-                    <>
-                      이 주소로 열려요:{' '}
-                      <a href={url} target="_blank" rel="noopener noreferrer">
-                        {url}
-                      </a>
-                    </>
-                  ) : (
-                    '⚠ 주소가 비어 있거나 알아볼 수 없어요 — 이 버튼은 홈페이지에 안 나옵니다.'
-                  )}
-                </p>
-                <button
-                  className="small red"
-                  style={{ marginTop: 6 }}
-                  onClick={() => setSite('planLinks', list.filter((_, j) => j !== i))}
-                >
-                  이 버튼 빼기
-                </button>
-              </div>
-            );
-          })}
-          <button
-            className="small"
-            onClick={() =>
-              setSite('planLinks', [...(data.site.planLinks || []), { name: '', url: '' }])
-            }
-          >
-            ➕ 버튼 하나 더 넣기
-          </button>
+          {linkEditor('planLinks', '영역별 프로그램 기획자동화', 2, '오감융합놀이 기획프로그램')}
+          {linkEditor('siteLinks', '우리원 프로그램 기획 사이트 제공', 4, '우리원 프로그램 기획 사이트')}
 
           <label className="f">수료증 받는 곳 주소</label>
           <input
