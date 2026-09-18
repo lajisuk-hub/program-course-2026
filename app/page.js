@@ -7,7 +7,7 @@ import Enter from './Enter.js';
 import KakaoIcon from './KakaoIcon.js';
 import { QUICK } from '../lib/defaults.js';
 import { BENEFITS, BENEFIT_FOOT, SESSION_COLORS } from '../lib/content.js';
-import { dateText, sessionState, STATE_LABEL, loadMe, clearMe } from '../lib/util.js';
+import { dateText, sessionState, STATE_LABEL, loadMe, clearMe, pickUrl } from '../lib/util.js';
 
 export default function Home() {
   const router = useRouter();
@@ -34,6 +34,10 @@ export default function Home() {
 
   const site = data.site || {};
   const sessions = data.sessions || [];
+  // 「영역별 프로그램 기획자동화」 버튼 — 주소 칸에 글이 섞여 있어도 첫 주소만 쓴다
+  const planLinks = (Array.isArray(site.planLinks) ? site.planLinks : [])
+    .map((l) => ({ name: (l.name || '').trim(), url: pickUrl(l.url) }))
+    .filter((l) => l.url);
 
   // 자료를 보려면 먼저 수강생 확인을 거친다
   function goSession(id) {
@@ -196,6 +200,18 @@ export default function Home() {
                 <div className="bico">{b.icon}</div>
                 <p>{b.body}</p>
                 {b.url && <span className="bgo">{b.go || '바로 가기'} →</span>}
+                {b.links &&
+                  planLinks.map((l, i) => (
+                    <a
+                      className="bgo blink"
+                      key={i}
+                      href={l.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {l.name || '바로 가기'} →
+                    </a>
+                  ))}
               </>
             );
             return b.url ? (

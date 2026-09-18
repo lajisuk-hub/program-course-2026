@@ -1203,6 +1203,17 @@ textarea {
   padding: 6px 10px;
 }
 
+/* 「영역별 프로그램 기획자동화」 칸의 버튼들 (관리자가 넣은 만큼 쌓인다) */
+.ben a.blink {
+  text-decoration: none;
+  line-height: 1.35;
+}
+
+.ben a.blink:hover {
+  background: var(--blue);
+  color: #fff;
+}
+
 /* 「기획 도우미 열기」 칸은 눌러 달라고 살짝 움직인다 */
 @keyframes benBreathe {
   0%,
