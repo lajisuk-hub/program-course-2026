@@ -19,6 +19,8 @@ const TH = {
 };
 const TD = { padding: '8px 10px', borderTop: '1px solid var(--line)' };
 
+const MAX_FILE_MB = 100; // app/api/upload 의 한도와 같아야 한다
+
 const newSession = (no) => ({
   id: 's' + Math.random().toString(36).slice(2, 8),
   no,
@@ -42,6 +44,7 @@ export default function Admin() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [ok, setOk] = useState('');
+  const [fileMsg, setFileMsg] = useState({}); // 차시별 강의안 올리기 알림 (파일 칸 바로 아래)
   const [stuName, setStuName] = useState(''); // 한 명 넣기 — 이름
   const [stuPhone, setStuPhone] = useState(''); // 한 명 넣기 — 전화번호
   const [bulk, setBulk] = useState(''); // 카톡·엑셀에서 붙여넣은 글
@@ -202,23 +205,40 @@ export default function Admin() {
     const files = Array.from(fileList || []);
     if (!files.length) return;
     setErr('');
+    // 알림은 파일 칸 바로 아래에 띄운다 (맨 아래에 뜨면 못 보고 지나친다)
+    const say = (type, text) => setFileMsg((m) => ({ ...m, [i]: { type, text } }));
+    const big = files.find((f) => f.size > MAX_FILE_MB * 1024 * 1024);
+    if (big) {
+      say(
+        'err',
+        `「${big.name}」은 ${Math.round(big.size / 1024 / 1024)}MB라서 올릴 수 없어요. ` +
+          `한 파일은 ${MAX_FILE_MB}MB까지만 올라갑니다. 파일 크기를 줄여서 다시 올려 주세요.`
+      );
+      return;
+    }
     setBusy(true);
     try {
       const added = [];
       for (const f of files) {
+        say('ing', `「${f.name}」 올리는 중… 0%`);
         const blob = await upload(`materials/${f.name}`, f, {
           access: 'public',
           handleUploadUrl: '/api/upload',
           clientPayload: pw,
+          multipart: f.size > 20 * 1024 * 1024, // 큰 파일은 나눠서 올려야 중간에 안 끊긴다
+          onUploadProgress: (p) =>
+            say('ing', `「${f.name}」 올리는 중… ${Math.round(p.percentage)}%`),
         });
         added.push({ name: f.name, url: blob.url });
       }
-      const sessions = data.sessions.slice();
-      sessions[i] = { ...sessions[i], files: [...(sessions[i].files || []), ...added] };
-      setData({ ...data, sessions });
-      setOk('자료를 올렸습니다. 아래 "저장하기"를 눌러야 최종 반영됩니다.');
+      setData((prev) => {
+        const sessions = prev.sessions.slice();
+        sessions[i] = { ...sessions[i], files: [...(sessions[i].files || []), ...added] };
+        return { ...prev, sessions };
+      });
+      say('ok', '자료를 올렸습니다. 맨 아래 「저장하기」를 눌러야 수강생 화면에 반영됩니다.');
     } catch (e2) {
-      setErr('자료를 올리지 못했어요: ' + e2.message);
+      say('err', '자료를 올리지 못했어요: ' + e2.message);
     } finally {
       setBusy(false);
     }
@@ -652,8 +672,21 @@ export default function Admin() {
                 type="file"
                 multiple
                 style={{ marginTop: 8, border: 'none', padding: 0 }}
-                onChange={(e) => pickFile(i, e.target.files)}
+                disabled={busy}
+                onChange={(e) => {
+                  const picked = Array.from(e.target.files || []);
+                  e.target.value = ''; // 못 올린 파일 이름이 칸에 남아 올라간 것처럼 보이지 않게
+                  pickFile(i, picked);
+                }}
               />
+              <p className="muted" style={{ margin: '4px 0 0' }}>
+                한 파일 {MAX_FILE_MB}MB까지. 올라간 파일은 위에 📎 표시로 나타납니다.
+              </p>
+              {fileMsg[i] && (
+                <div className={fileMsg[i].type === 'err' ? 'err' : fileMsg[i].type === 'ok' ? 'ok' : 'muted'}>
+                  {fileMsg[i].text}
+                </div>
+              )}
 
               <label className="f">녹화본 주소 (유튜브 &apos;일부공개&apos; 주소를 붙여넣으세요)</label>
               <input
